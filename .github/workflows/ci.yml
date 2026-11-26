@@ -1,0 +1,78 @@
+name: ci
+
+# No schedule trigger. This is a library, there is nothing to run on a timer,
+# and a scheduled workflow in a template repo fails in every fork until it is
+# configured.
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: pester (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ windows-latest, ubuntu-latest, macos-latest ]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Pester
+        shell: pwsh
+        run: Install-Module Pester -MinimumVersion 5.5.0 -Force -Scope CurrentUser -SkipPublisherCheck
+
+      - name: Run tests
+        shell: pwsh
+        run: |
+          $result = Invoke-Pester -Path ./tests -PassThru -Output Detailed
+          if ($result.FailedCount -gt 0) { throw "$($result.FailedCount) test(s) failed" }
+
+  test-windows-powershell:
+    name: pester (Windows PowerShell 5.1)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run tests on Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $PSVersionTable.PSVersion
+          Install-Module Pester -MinimumVersion 5.5.0 -Force -Scope CurrentUser -SkipPublisherCheck
+          Import-Module Pester -MinimumVersion 5.5.0
+          $result = Invoke-Pester -Path ./tests -PassThru
+          if ($result.FailedCount -gt 0) { throw "$($result.FailedCount) test(s) failed" }
+
+  analyze:
+    name: script analyzer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
+          # Whole repo, not just the module: examples and tests ship too.
+          $issues = Invoke-ScriptAnalyzer -Path . -Recurse -Severity Error,Warning
+          if ($issues) {
+            $issues | Format-Table -AutoSize
+            throw "PSScriptAnalyzer found $($issues.Count) issue(s)"
+          }
+          'PSScriptAnalyzer clean'
+
+  manifest:
+    name: manifest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate module manifest
+        shell: pwsh
+        run: |
+          $m = Test-ModuleManifest -Path ./module/PSRetryAfter/PSRetryAfter.psd1
+          "$($m.Name) $($m.Version), requires PowerShell $($m.PowerShellVersion)"
+          if ($m.RequiredModules.Count -gt 0) { throw 'This module must stay dependency free' }

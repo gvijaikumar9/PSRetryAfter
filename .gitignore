@@ -1,0 +1,20 @@
+# Build and publish output
+/out/
+/dist/
+*.nupkg
+
+# Test output
+testResults*.xml
+coverage*.xml
+
+# Editor and OS noise
+.vscode/
+.idea/
+*.suo
+*.user
+Thumbs.db
+.DS_Store
+
+# Local scratch
+*.local.ps1
+scratch/

@@ -1,0 +1,1 @@
+Edit this line and run poll-for-file.ps1 again to see your change read back.
